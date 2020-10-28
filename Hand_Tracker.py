@@ -14,6 +14,9 @@ def nothing(x):
     """
     pass
 
+def finger_finder():
+    pass
+
 def handler(feed, wname):
     """
 
@@ -26,8 +29,8 @@ def handler(feed, wname):
     cv2.namedWindow(wname)
     cv2.namedWindow(slidermenu)
 
-
     font = cv2.FONT_HERSHEY_PLAIN
+    """
     cv2.createTrackbar('Hmin', slidermenu, 0, 180, nothing)
     cv2.createTrackbar('Smin', slidermenu, 0, 255, nothing)
     cv2.createTrackbar('Vmin', slidermenu, 0, 255, nothing)
@@ -35,9 +38,17 @@ def handler(feed, wname):
     cv2.createTrackbar('Hmax', slidermenu, 180, 180, nothing)
     cv2.createTrackbar('Smax', slidermenu, 255, 255, nothing)
     cv2.createTrackbar('Vmax', slidermenu, 255, 255, nothing)
+    """
 
-    cv2.createTrackbar('Blur', slidermenu, 1, 50, nothing)
-    cv2.createTrackbar('Area', slidermenu, 240, 500, nothing)
+    cv2.createTrackbar('Hmin', slidermenu, 14, 180, nothing)
+    cv2.createTrackbar('Smin', slidermenu, 77, 255, nothing)
+    cv2.createTrackbar('Vmin', slidermenu, 104, 255, nothing)
+
+    cv2.createTrackbar('Hmax', slidermenu, 176, 180, nothing)
+    cv2.createTrackbar('Smax', slidermenu, 158, 255, nothing)
+    cv2.createTrackbar('Vmax', slidermenu, 255, 255, nothing)
+
+    cv2.createTrackbar('Blur', slidermenu, 5, 50, nothing)
 
     while True:
         """
@@ -48,7 +59,7 @@ def handler(feed, wname):
 
         """
         Creates blurred image to reduce noise
-        kernal size for cv2 blur must always be an odd number, hence the shenanigans with variable 'b'
+        Kernal size for cv2 blur must always be an odd number, hence the shenanigans with variable 'b'
         """
         b = (cv2.getTrackbarPos('Blur', slidermenu) * 2) + 1
         blur = cv2.GaussianBlur(img, (b,b), 0)
@@ -56,42 +67,64 @@ def handler(feed, wname):
         """
         Creates trackbars for HSV thresholds
         """
-
         #Min Thresholds
         min_H = cv2.getTrackbarPos('Hmin', slidermenu)
         min_S = cv2.getTrackbarPos('Smin', slidermenu)
         min_V = cv2.getTrackbarPos('Vmin', slidermenu)
-
         #Max Thresholds
         max_H = cv2.getTrackbarPos('Hmax', slidermenu)
         max_S = cv2.getTrackbarPos('Smax', slidermenu)
         max_V = cv2.getTrackbarPos('Vmax', slidermenu)
 
+        """
+        Threshold arrays
+        """
         lower_HSV = np.array([min_H, min_S, min_V])
         upper_HSV = np.array([max_H, max_S, max_V])
 
+        """
+        Making an HSV mask, and applying HSV thresholds
+        """
         HSV = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV)
         mask_HSV = cv2.inRange(HSV, lower_HSV, upper_HSV)
 
-        blur_HSV = cv2.bitwise_and(blur, blur, mask=mask_HSV)
+        """
+        Applies blur filter created earlier
+        """
+        cv2.bitwise_and(blur, blur, mask=mask_HSV)
 
-        #area = cv2.getTrackbarPos('Area', slidermenu)
+        """
+        Further refine image using erode and dilate
+        """
+        k = 2
+        kernal = np.ones((k,k), np.uint8)
+        cv2.erode(mask_HSV, kernal,cv2.CV_8UC1)
+        cv2.dilate(mask_HSV, kernal,cv2.CV_8UC1)
 
-        #contours, _ = cv2.findContours(rgbmask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        """for contour in contours:
-            area = cv2.contourArea(contour)
-            if area > (tarea*100):
-                cv2.drawContours(filtered, contour, -1, (0, 255, 0), 8)"""
-
-
-        #cv2.drawContours(img, contours, -1, (0,255,0), 3)
-        #cv2.drawContours(filtered, contours, -1, (0, 255, 0), 3)
+        """
+        Contours:
+        Within the loop, it tries to find the largest contoured area 
+        After finding the largest contoured area, it then assigns the actual area to area[0], and the contour array to area[1]
+        """
+        contours, hierarchy = cv2.findContours(mask_HSV, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        if len(contours) > 0:
+            area = [-1, []]
+            for contour in contours:
+                con = cv2.contourArea(contour)
+                if con > area[0]:
+                    area[0] = con
+                    area[1] = contour
+            hull = cv2.convexHull(area[1])
+            draw = np.zeros(img.shape, np.uint8)
+            cv2.drawContours(img, [area[1]], 0, (0, 255, 0), 2) #Hand outline
+            cv2.drawContours(img, [hull], 0, (0, 0, 255), 3) #Hand wireframe
 
 
         if cv2.waitKey(1) == 27:
             break  # esc to quit
-        #cv2.imshow(wname, img)
-        cv2.imshow(wname, blur_HSV)
+        cv2.imshow(wname, img)
+        #cv2.imshow(wname, blur_HSV)
+        #cv2.imshow(wname, draw)
 
     feed.release()
     cv2.destroyAllWindows()
