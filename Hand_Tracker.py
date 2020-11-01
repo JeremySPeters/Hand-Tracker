@@ -5,6 +5,7 @@
 """
 import numpy as np
 import cv2
+import math
 
 def nothing(x):
     """
@@ -14,8 +15,25 @@ def nothing(x):
     """
     pass
 
-def finger_finder():
-    pass
+def finger_finder(contour,ghostframe):
+    if len(contour) > 10:
+        hull = cv2.convexHull(contour, returnPoints=False)
+        defects = cv2.convexityDefects(contour, hull)
+        if not isinstance(type(defects), type(None)):
+            fingers = 0
+            for i in range(defects.shape[0]):
+                ds, de, df, dd = defects[i][0]
+                start, end, far = tuple(contour[ds][0]), tuple(contour[de][0]), tuple(contour[df][0])
+                a = math.sqrt((end[0] - start[0]) ** 2 + (end[1] - start[1]) ** 2)
+                b = math.sqrt((far[0] - start[0]) ** 2 + (far[1] - start[1]) ** 2)
+                c = math.sqrt((end[0] - far[0]) ** 2 + (end[1] - far[1]) ** 2)
+                angle = math.acos((b ** 2 + c ** 2 - a ** 2) / (2 * b * c))
+                if angle <= math.pi / 2:
+                    fingers += 1
+                    cv2.circle(ghostframe, far, 8, (211, 84, 0), -1)
+            return fingers
+    else:
+        pass
 
 def handler(feed, wname):
     """
@@ -115,16 +133,40 @@ def handler(feed, wname):
                     area[0] = con
                     area[1] = contour
             hull = cv2.convexHull(area[1])
-            draw = np.zeros(img.shape, np.uint8)
+            ghostframe = np.zeros(img.shape, np.uint8) #Will never be displayed
             cv2.drawContours(img, [area[1]], 0, (0, 255, 0), 2) #Hand outline
             cv2.drawContours(img, [hull], 0, (0, 0, 255), 3) #Hand wireframe
 
+            """
+            Fingers:
+            - Gets number of fingers and then displays them using GPIO and LEDs
+            - finger_finder is error prone due to an issue with openCV's "convexityDefects" function, best to ignore
+            """
+            fingers = 0
+            try:
+                fingers = finger_finder(area[1], img)
+            except:
+                pass
+            if not isinstance(type(fingers), type(None)):
+                    if fingers == 0:
+                        pass
+                    if fingers == 1:
+                        pass
+                    if fingers == 2:
+                        pass
+                    if fingers == 3:
+                        pass
+                    if fingers >= 4:
+                        pass
+
+        """
+        Shows image to make adjustments easier to manage
+        """
+        cv2.imshow(wname, img)
 
         if cv2.waitKey(1) == 27:
             break  # esc to quit
-        cv2.imshow(wname, img)
-        #cv2.imshow(wname, blur_HSV)
-        #cv2.imshow(wname, draw)
+
 
     feed.release()
     cv2.destroyAllWindows()
@@ -133,6 +175,7 @@ def main():
     feed = cv2.VideoCapture(0)
     feed.set(3, 640)
     feed.set(4, 480)
+    feed.set(cv2.CAP_PROP_FPS, 30)
     handler(feed, 'frame')
     exit(0)
 
