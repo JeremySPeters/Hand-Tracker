@@ -1,7 +1,5 @@
 """
 @Author: Jeremy Peters
-
-
 """
 import numpy as np
 import cv2
